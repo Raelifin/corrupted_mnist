@@ -32,7 +32,7 @@ import tensorflow as tf
 import numpy as np
 
 FLAGS = None
-CORRUPTION_RATIO = 0.2
+CORRUPTION_RATIO = 0.1
 
 
 def one_hot(hot_index, length):
@@ -97,6 +97,8 @@ def main(_):
 
   # Calibrating
   print("Calibrating skip ratio based on network confidence...")
+  # TODO Currently I'm running a tf session to get the confidences and then computing the threshold in python.
+  # Ideally the confidence threshold would be drawn directly from the network and we wouldn't need to re-run the session.
   conf_node = tf.reduce_max(tf.nn.softmax(y, 1), 1)
   confidences = sess.run(conf_node, feed_dict={x: np.array(images), y_: np.array(labels)})
   sorted_conf = np.sort(confidences)
@@ -113,8 +115,18 @@ def main(_):
   out = sess.run(accuracy, feed_dict={x: np.array(images), y_: np.array(labels)})
   print("%2.2f%% of samples correctly labeled." % (100*out))
 
+  if FLAGS.save_dir:
+      # Save model to disk
+      saver = tf.train.Saver()
+      saver.save(sess, FLAGS.save_dir+'/model.ckpt')
+      print("Model saved to disk in %s" % FLAGS.save_dir)
+
+      tf.summary.scalar('cross_entropy', cross_entropy)
+      writer = tf.summary.FileWriter(FLAGS.save_dir, sess.graph)
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--input_data', type=str, default='data.csv', help='Input data file')
+  parser.add_argument('--save_dir', type=str, default=None, help='Input data file')
   FLAGS, unparsed = parser.parse_known_args()
   tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
