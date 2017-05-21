@@ -32,6 +32,7 @@ import tensorflow as tf
 import numpy as np
 
 FLAGS = None
+CORRUPTION_RATIO = 0.1
 
 
 def one_hot(hot_index, length):
@@ -92,13 +93,25 @@ def main(_):
     batch_xs = next_batch(images, i*100, 100)
     batch_ys = next_batch(labels, i*100, 100)
     sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+  print("Training complete!")
+
+  # Calibrating
+  print("Calibrating skip ratio based on network confidence...")
+  conf_node = tf.reduce_max(tf.nn.softmax(y, 1), 1)
+  confidences = sess.run(conf_node, feed_dict={x: np.array(images), y_: np.array(labels)})
+  sorted_conf = np.sort(confidences)
+  skip_conf = sorted_conf[int(round(len(sorted_conf)*CORRUPTION_RATIO))]
+  print("Will skip on inputs where less than %2.2f%% confident." % (100*skip_conf))
 
   # Test trained model
-  print("Training complete! Checking accuracy...")
-  correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
-  accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-  score = sess.run(accuracy, feed_dict={x: np.array(images), y_: np.array(labels)})
-  print("%2.2f%% of samples correctly labeled." % (100*score))
+  print("Testing model....")  # TODO Get validation dataset so we're not testing on training data!
+  not_skip = tf.greater(tf.reduce_max(tf.nn.softmax(y, 1), 1), skip_conf)
+  predictions = tf.boolean_mask(tf.argmax(y, 1), not_skip)
+  truth_of_predicted_inputs = tf.boolean_mask(tf.argmax(y_, 1), not_skip)
+  correct = tf.equal(predictions, truth_of_predicted_inputs)
+  accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+  out = sess.run(accuracy, feed_dict={x: np.array(images), y_: np.array(labels)})
+  print("%2.2f%% of samples correctly labeled." % (100*out))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
