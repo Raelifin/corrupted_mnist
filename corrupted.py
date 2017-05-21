@@ -32,7 +32,7 @@ import tensorflow as tf
 import numpy as np
 
 FLAGS = None
-CORRUPTION_RATIO = 0.1
+CORRUPTION_RATIO = 0.2
 
 
 def one_hot(hot_index, length):
